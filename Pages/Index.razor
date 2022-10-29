@@ -1,0 +1,161 @@
+﻿@page "/"
+@inject IJSRuntime js
+@using System.Text.Json
+@using System.Text.Json.Serialization;
+@using System.Globalization
+@inject IHttpClientFactory ClientFactory
+
+
+<PageTitle>Index</PageTitle>
+
+<AuthorizeView>
+    <Authorized>
+        <h1>Hello, @context.User.Identity.Name!</h1>
+    </Authorized>
+    <NotAuthorized>
+        <h1>Hello, Guest!</h1>
+    </NotAuthorized>
+</AuthorizeView>
+
+Welcome to your new app.
+
+
+<AuthorizeView>
+    <Authorized>
+       <h1>Tečajna lista</h1>
+
+
+
+
+
+<table class="table">
+    <thead>
+        <tr>
+            <th scope="col">Država</th>
+            <th scope="col">Valuta</th>
+            <th scope="col">Prodajni za devize</th>
+            <th scope="col">Jedinica</th>
+            <th scope="col">Konvertirano</th>
+        </tr>
+    </thead>
+    <tbody>
+
+
+                @if (getBranchesError)
+                {
+
+                <tr>
+                    <td>Unable to get API. </td>
+
+                </tr>
+                }
+                else
+                {
+
+                    @foreach (var valuta in valute)
+                    {
+
+                        if (valuta.Valuta == "EUR")
+                        {
+                            Eur = Convert.ToDecimal(valuta.Prodajni)/1000000;
+
+                        }
+                        if (valuta.Valuta == "USD")
+                        {
+                            Usd = Convert.ToDecimal(valuta.Prodajni) / 1000000;
+
+                        }
+                        <tr>
+                            <td>@valuta.Drzava </td>
+                            <td>@valuta.Valuta </td>
+                            <td>@valuta.Prodajni</td>
+                            <td>@valuta.Jedinica</td>
+                                            <td>@(Math.Round((inputValue / (Convert.ToDecimal(valuta.Prodajni)/1000000)), 2)) @valuta.Valuta</td>
+                        </tr>
+                    }
+
+                }
+    </tbody>
+</table>
+
+<form>
+
+
+    <div class="form-group row">
+        <label for="Hrk" class="col-sm-2 col-form-label">Unesite vrijednost u HRK</label>
+        <div class="col-sm-3">
+            <input id="Hrk" class="form-control" @bind="@inputValue" @oninput="OnInputEvent" />
+        </div>
+    </div>
+</form>
+    </Authorized>
+</AuthorizeView>
+
+@code {
+
+    private IEnumerable<TecajnaLista> valute = Array.Empty<TecajnaLista>();
+    private bool getBranchesError;
+    private bool shouldRender;
+    private decimal Eur;
+    private decimal Ekn;
+    private decimal Usd;
+    private int broj;
+    private decimal inputValue = 10M;
+
+
+    private void OnInputEvent(ChangeEventArgs changeEvent)
+    {
+        try
+        {
+            inputValue = decimal.Parse(changeEvent.Value.ToString());
+            Ekn = inputValue/Eur;
+        }
+        catch
+        {
+            inputValue = 0;
+            Ekn = 0;
+        }
+
+    }
+
+    protected override bool ShouldRender() => shouldRender;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get,
+            "https://api.hnb.hr/tecajn/v1?valuta=EUR&valuta=USD");
+        //request.Headers.Add("Accept", "application/vnd.github.v3+json");
+        //request.Headers.Add("User-Agent", "HttpClientFactory-Sample");
+
+        var client = ClientFactory.CreateClient();
+
+        var response = await client.SendAsync(request);
+
+        if (response.IsSuccessStatusCode)
+        {
+            using var responseStream = await response.Content.ReadAsStreamAsync();
+            valute = await JsonSerializer.DeserializeAsync
+            <IEnumerable<TecajnaLista>>(responseStream);
+        }
+        else
+        {
+            getBranchesError = true;
+        }
+
+
+        shouldRender = true;
+    }
+
+    public class TecajnaLista
+    {
+        [JsonPropertyName("Valuta")]
+        public string Valuta { get; set; }
+        [JsonPropertyName("Prodajni za devize")]
+        public string Prodajni { get; set; }
+        [JsonPropertyName("Država")]
+        public string Drzava { get; set; }
+        [JsonPropertyName("Jedinica")]
+        public int Jedinica { get; set; }
+    }
+
+}
